@@ -48,8 +48,6 @@ import (
 	"math"
 	"math/rand"
 	"net"
-	"os"
-	"os/signal"
 	"sync"
 	"syscall"
 	"time"
@@ -133,6 +131,11 @@ type Pinger struct {
 
 	// stop chan bool
 	done chan bool
+
+	// stopRun is used to stop a Run command mid-way by closing it. We can't
+	// just use done because other internal processes close done during Run, so
+	// we can't guarantee that done won't be double closed
+	stopRun chan struct{}
 
 	ipaddr *net.IPAddr
 	addr   string
@@ -262,6 +265,7 @@ func (p *Pinger) Run() {
 }
 
 func (p *Pinger) run() {
+	p.stopRun = make(chan struct{})
 	var conn *icmp.PacketConn
 	if p.ipv4 {
 		if conn = p.listen(ipv4Proto[p.network], p.source); conn == nil {
@@ -286,14 +290,13 @@ func (p *Pinger) run() {
 	}
 
 	timeout := time.NewTicker(p.Timeout)
+	defer timeout.Stop()
 	interval := time.NewTicker(p.Interval)
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
-	signal.Notify(c, syscall.SIGTERM)
+	defer interval.Stop()
 
 	for {
 		select {
-		case <-c:
+		case <-p.stopRun:
 			close(p.done)
 		case <-p.done:
 			wg.Wait()
@@ -320,6 +323,12 @@ func (p *Pinger) run() {
 			}
 		}
 	}
+}
+
+// StopRun can be used while a Run is in-progress to stop it mid-way. It may
+// only be used after Run has been called, and only once per Run.
+func (p *Pinger) StopRun() {
+	close(p.stopRun)
 }
 
 func (p *Pinger) finish() {
