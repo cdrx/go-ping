@@ -205,11 +205,11 @@ func (pr *Pinger) recvLoop(conn *icmp.PacketConn, isIPv4 bool) {
 
 // Ping pings the given addr.
 //
-// Count tells pinger how many echo packets to send.
+// count tells pinger how many echo packets to send.
 //
-// Interval is the wait time between each packet send.
+// interval is the wait time between each packet send.
 //
-// Timeout specifies an overall timeout for the entire ping operation.
+// timeout specifies an overall timeout for the entire operation.
 func (pr *Pinger) Ping(addr string, count int, interval time.Duration, timeout time.Duration) (*Statistics, error) {
 	deadline := time.NewTimer(timeout)
 	sendInterval := time.NewTicker(interval)
@@ -275,6 +275,28 @@ func (pr *Pinger) Ping(addr string, count int, interval time.Duration, timeout t
 			}
 		case <-pr.done:
 			return buildStats(addr, ipaddr, seq, packetsReceived, rtts), fmt.Errorf("Pinger closed")
+		}
+	}
+}
+
+// Loop pings the given addr continuously in batches, starting at minBatch and
+// exponentially increasing to maxBatch. The results of each batch are sent to
+// onBatch. If onBatch returns false, looping terminates.
+//
+// interval is the wait time between each packet send.
+//
+// timeoutRTT specifies the timeout for a single round-trip. The timeout for
+// for each batch is set to batchSize * timeoutRTT.
+func (pr *Pinger) Loop(addr string, minBatch int, maxBatch int, interval time.Duration, timeoutRTT time.Duration, onBatch func(stats *Statistics, err error) bool) {
+	batchSize := minBatch
+	for {
+		stats, err := pr.Ping(addr, batchSize, interval, time.Duration(batchSize)*timeoutRTT)
+		if !onBatch(stats, err) {
+			return
+		}
+		batchSize *= 2
+		if batchSize > maxBatch {
+			batchSize = maxBatch
 		}
 	}
 }
