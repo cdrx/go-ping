@@ -179,17 +179,20 @@ func (pr *Pinger) recvLoop(conn *icmp.PacketConn, isIPv4 bool) {
 				continue
 			}
 
-			outPkt := &packet{}
-
 			switch pkt := m.Body.(type) {
 			case *icmp.Echo:
-				outPkt.seq = pkt.Seq
-				outPkt.rtt = time.Since(bytesToTime(pkt.Data[:timeSliceLength]))
-				pr.mx.RLock()
-				receiver := pr.receivers[pkt.ID]
-				pr.mx.RUnlock()
-				if receiver != nil {
-					receiver <- outPkt
+				if len(pkt.Data) < timeSliceLength {
+					// Incomplete/corrupted packet, ignore
+				} else {
+					outPkt := &packet{}
+					outPkt.seq = pkt.Seq
+					outPkt.rtt = time.Since(bytesToTime(pkt.Data))
+					pr.mx.RLock()
+					receiver := pr.receivers[pkt.ID]
+					pr.mx.RUnlock()
+					if receiver != nil {
+						receiver <- outPkt
+					}
 				}
 			default:
 				// Very bad, not sure how this can happen
