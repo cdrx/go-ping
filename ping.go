@@ -22,6 +22,7 @@
 package ping
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"math/rand"
@@ -45,6 +46,12 @@ const (
 var (
 	ipv4Proto = map[string]string{"ip": "ip4:icmp", "udp": "udp4"}
 	ipv6Proto = map[string]string{"ip": "ip6:ipv6-icmp", "udp": "udp6"}
+)
+
+var (
+	// ErrPingerClosed is returned when the pinger is closed while still running
+	// pings.
+	ErrPingerClosed = errors.New("pinger closed")
 )
 
 // packet represents a received and processed ICMP echo packet.
@@ -274,7 +281,7 @@ func (pr *Pinger) Ping(addr string, count int, interval time.Duration, timeout t
 				return buildStats(addr, ipaddr, seq, packetsReceived, rtts), nil
 			}
 		case <-pr.done:
-			return buildStats(addr, ipaddr, seq, packetsReceived, rtts), fmt.Errorf("Pinger closed")
+			return buildStats(addr, ipaddr, seq, packetsReceived, rtts), ErrPingerClosed
 		}
 	}
 }
@@ -291,6 +298,9 @@ func (pr *Pinger) Loop(addr string, minBatch int, maxBatch int, interval time.Du
 	batchSize := minBatch
 	for {
 		stats, err := pr.Ping(addr, batchSize, interval, time.Duration(batchSize)*timeoutRTT)
+		if err == ErrPingerClosed {
+			return
+		}
 		if !onBatch(stats, err) {
 			return
 		}
