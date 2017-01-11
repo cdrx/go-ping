@@ -61,6 +61,9 @@ type packet struct {
 
 	// rtt contains the round-trip time relative to the echo request
 	rtt time.Duration
+
+	// data is the number of bytes of the received packet
+	data int
 }
 
 // Statistics represent the stats of a currently running or finished
@@ -96,6 +99,12 @@ type Statistics struct {
 	// StdDevRtt is the standard deviation of the round-trip times sent via
 	// this pinger.
 	StdDevRtt time.Duration
+
+	// BytesSent tracks the number of bytes sent in pings (including envelope)
+	BytesSent int
+
+	// BytesRecv tracks the number of bytes received in pings (including envelope)
+	BytesRecv int
 }
 
 // Pinger processes pings
@@ -194,6 +203,7 @@ func (pr *Pinger) recvLoop(conn *icmp.PacketConn, isIPv4 bool) {
 					outPkt := &packet{}
 					outPkt.seq = pkt.Seq
 					outPkt.rtt = time.Since(bytesToTime(pkt.Data))
+					outPkt.data = n
 					pr.mx.RLock()
 					receiver := pr.receivers[pkt.ID]
 					pr.mx.RUnlock()
@@ -242,12 +252,16 @@ func (pr *Pinger) Ping(addr string, count int, interval time.Duration, timeout t
 
 	seq := 0
 	packetsReceived := 0
+	bytesSent := 0
+	bytesRecv := 0
+
 	for {
 		select {
 		case <-sendInterval.C:
-			sendErr := pr.send(conn, ipaddr, ipv4, id, seq)
+			n, sendErr := pr.send(conn, ipaddr, ipv4, id, seq)
+			bytesSent += n
 			if sendErr != nil {
-				return buildStats(addr, ipaddr, seq, packetsReceived, rtts), err
+				return buildStats(addr, ipaddr, seq, packetsReceived, rtts, bytesSent, bytesRecv), err
 			}
 			seq += 1
 			if seq == count {
@@ -262,8 +276,9 @@ func (pr *Pinger) Ping(addr string, count int, interval time.Duration, timeout t
 			if packetsReceived == 0 {
 				return nil, fmt.Errorf("Deadline exceeded before receiving any responses")
 			}
-			return buildStats(addr, ipaddr, seq, packetsReceived, rtts), nil
+			return buildStats(addr, ipaddr, seq, packetsReceived, rtts, bytesSent, bytesRecv), nil
 		case pkt := <-receiver:
+			bytesRecv += pkt.data
 			if pkt.seq < 0 || pkt.seq >= count {
 				fmt.Printf("Warning: received packet with invalid sequence %d, ignoring\n", pkt.seq)
 				continue
@@ -278,10 +293,10 @@ func (pr *Pinger) Ping(addr string, count int, interval time.Duration, timeout t
 				maxRtt = pkt.rtt
 			}
 			if packetsReceived == count {
-				return buildStats(addr, ipaddr, seq, packetsReceived, rtts), nil
+				return buildStats(addr, ipaddr, seq, packetsReceived, rtts, bytesSent, bytesRecv), nil
 			}
 		case <-pr.done:
-			return buildStats(addr, ipaddr, seq, packetsReceived, rtts), ErrPingerClosed
+			return buildStats(addr, ipaddr, seq, packetsReceived, rtts, bytesSent, bytesRecv), ErrPingerClosed
 		}
 	}
 }
@@ -327,7 +342,7 @@ func (pr *Pinger) newReceiver(count int) (int, chan *packet) {
 	}
 }
 
-func (pr *Pinger) send(conn *icmp.PacketConn, ipaddr *net.IPAddr, isIPv4 bool, id int, seq int) error {
+func (pr *Pinger) send(conn *icmp.PacketConn, ipaddr *net.IPAddr, isIPv4 bool, id int, seq int) (int, error) {
 	var typ icmp.Type
 	if isIPv4 {
 		typ = ipv4.ICMPTypeEcho
@@ -349,25 +364,25 @@ func (pr *Pinger) send(conn *icmp.PacketConn, ipaddr *net.IPAddr, isIPv4 bool, i
 		},
 	}).Marshal(nil)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	for {
-		if _, err := conn.WriteTo(bytes, dst); err != nil {
+		n, err := conn.WriteTo(bytes, dst)
+		if err != nil {
 			if neterr, ok := err.(*net.OpError); ok {
 				if neterr.Err == syscall.ENOBUFS {
 					continue
 				}
 			}
-			return err
 		}
 
-		return nil
+		return n, err
 	}
 }
 
 // Statistics returns the statistics of the ping.
-func buildStats(addr string, ipaddr *net.IPAddr, packetsSent int, packetsRecv int, rtts []time.Duration) *Statistics {
+func buildStats(addr string, ipaddr *net.IPAddr, packetsSent int, packetsRecv int, rtts []time.Duration, bytesSent int, bytesRecv int) *Statistics {
 	numRtts := len(rtts)
 	var min, max, total time.Duration
 	for _, rtt := range rtts {
@@ -391,6 +406,8 @@ func buildStats(addr string, ipaddr *net.IPAddr, packetsSent int, packetsRecv in
 		IPAddr:      ipaddr,
 		MaxRtt:      max,
 		MinRtt:      min,
+		BytesSent:   bytesSent,
+		BytesRecv:   bytesRecv,
 	}
 	if numRtts > 0 {
 		s.AvgRtt = total / time.Duration(numRtts)
