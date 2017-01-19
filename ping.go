@@ -174,6 +174,7 @@ func (pr *Pinger) recvLoop(conn *icmp.PacketConn, isIPv4 bool) {
 				}
 			}
 
+			bytes = bytes[:n]
 			var proto int
 			if !isIPv4 {
 				proto = protocolIPv6ICMP
@@ -185,7 +186,7 @@ func (pr *Pinger) recvLoop(conn *icmp.PacketConn, isIPv4 bool) {
 			}
 
 			var m *icmp.Message
-			if m, err = icmp.ParseMessage(proto, bytes[:n]); err != nil {
+			if m, err = icmp.ParseMessage(proto, bytes); err != nil {
 				fmt.Printf("Error parsing icmp message: %v\n", err)
 				continue
 			}
