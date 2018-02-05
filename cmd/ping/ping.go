@@ -47,29 +47,25 @@ func main() {
 	}
 
 	host := flag.Arg(0)
-	pinger, err := ping.NewPinger(host)
+	pinger, err := ping.NewPinger(*privileged)
 	if err != nil {
 		fmt.Printf("ERROR: %s\n", err.Error())
 		return
 	}
 
-	pinger.OnRecv = func(pkt *ping.Packet) {
-		fmt.Printf("%d bytes from %s: icmp_seq=%d time=%v\n",
-			pkt.Nbytes, pkt.IPAddr, pkt.Seq, pkt.Rtt)
-	}
-	pinger.OnFinish = func(stats *ping.Statistics) {
-		fmt.Printf("\n--- %s ping statistics ---\n", stats.Addr)
-		fmt.Printf("%d packets transmitted, %d packets received, %v%% packet loss\n",
-			stats.PacketsSent, stats.PacketsRecv, stats.PacketLoss)
-		fmt.Printf("round-trip min/avg/max/stddev = %v/%v/%v/%v\n",
-			stats.MinRtt, stats.AvgRtt, stats.MaxRtt, stats.StdDevRtt)
-	}
+	fmt.Printf("PING %s:\n", host)
 
-	pinger.Count = *count
-	pinger.Interval = *interval
-	pinger.Timeout = *timeout
-	pinger.SetPrivileged(*privileged)
+	stats, err := pinger.Ping(host, *count, *interval, *timeout)
 
-	fmt.Printf("PING %s (%s):\n", pinger.Addr(), pinger.IPAddr())
-	pinger.Run()
+	//pinger.OnRecv = func(pkt *ping.Packet) {
+	//	fmt.Printf("%d bytes from %s: icmp_seq=%d time=%v\n",
+	//		pkt.Nbytes, pkt.IPAddr, pkt.Seq, pkt.Rtt)
+	//}
+
+	fmt.Printf("\n--- %s ping statistics ---\n", stats.Addr)
+	fmt.Printf("%d packets transmitted, %d packets received, %v%% packet loss\n",
+		stats.PacketsSent, stats.PacketsRecv, stats.PacketLoss)
+	fmt.Printf("round-trip min/avg/max/stddev = %v/%v/%v/%v\n",
+		stats.MinRtt, stats.AvgRtt, stats.MaxRtt, stats.StdDevRtt)
+
 }
