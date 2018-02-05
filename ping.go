@@ -91,7 +91,7 @@ func NewPinger(addr string) (*Pinger, error) {
 
 		network: "udp",
 		ipv4:    isv4,
-		size:    timeSliceLength,
+		size:    64,
 
 		done: make(chan bool),
 	}, nil
