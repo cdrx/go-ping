@@ -59,11 +59,10 @@ func main() {
 	fmt.Printf("PING %s:\n", host)
 
 	stats, err := pinger.Ping(host, *count, *interval, *timeout)
-
-	//pinger.OnRecv = func(pkt *ping.Packet) {
-	//	fmt.Printf("%d bytes from %s: icmp_seq=%d time=%v\n",
-	//		pkt.Nbytes, pkt.IPAddr, pkt.Seq, pkt.Rtt)
-	//}
+	if err != nil {
+		fmt.Printf("ping: %s\n", err.Error())
+		return
+	}
 
 	fmt.Printf("\n--- %s ping statistics ---\n", stats.Addr)
 	fmt.Printf("%d packets transmitted, %d packets received, %v%% packet loss\n",
