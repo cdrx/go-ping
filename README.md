@@ -1,5 +1,5 @@
 # go-ping
-[![GoDoc](https://godoc.org/github.com/getlantern/go-ping?status.svg)](https://godoc.org/github.com/sparrc/go-ping)
+[![GoDoc](https://godoc.org/github.com/cdrx/go-ping?status.svg)](https://godoc.org/github.com/cdrx/go-ping)
 
 ICMP Ping library for Go, inspired by
 [go-fastping](https://github.com/levenlabs/go-fastping)
@@ -26,7 +26,7 @@ if err != nil {
 ## Installation:
 
 ```
-go get github.com/getlantern/go-ping
+go get github.com/cdrx/go-ping
 ```
 
 ## Note on Linux Support:
