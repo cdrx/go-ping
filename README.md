@@ -1,6 +1,6 @@
 # go-ping
-[![GoDoc](https://godoc.org/github.com/sparrc/go-ping?status.svg)](https://godoc.org/github.com/sparrc/go-ping)
-[![Circle CI](https://circleci.com/gh/sparrc/go-ping.svg?style=svg)](https://circleci.com/gh/sparrc/go-ping)
+[![GoDoc](https://godoc.org/github.com/cdrx/go-ping?status.svg)](https://godoc.org/github.com/cdrx/go-ping)
+[![Circle CI](https://circleci.com/gh/cdrx/go-ping.svg?style=svg)](https://circleci.com/gh/cdrx/go-ping)
 
 ICMP Ping library for Go, inspired by
 [go-fastping](https://github.com/tatsushid/go-fastping)
@@ -46,18 +46,18 @@ it calls the "receive" callback. When it's finished, it calls the "finish"
 callback.
 
 For a full ping example, see
-[cmd/ping/ping.go](https://github.com/sparrc/go-ping/blob/master/cmd/ping/ping.go)
+[cmd/ping/ping.go](https://github.com/cdrx/go-ping/blob/master/cmd/ping/ping.go)
 
 ## Installation:
 
 ```
-go get github.com/sparrc/go-ping
+go get github.com/cdrx/go-ping
 ```
 
 To install the native Go ping executable:
 
 ```bash
-go get github.com/sparrc/go-ping/...
+go get github.com/cdrx/go-ping/...
 $GOPATH/bin/ping
 ```
 

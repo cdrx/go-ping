@@ -75,11 +75,11 @@ func NewPinger(addr string) (*Pinger, error) {
 		return nil, err
 	}
 
-	var ipv4 bool
+	var isv4 bool
 	if isIPv4(ipaddr.IP) {
-		ipv4 = true
+		isv4 = true
 	} else if isIPv6(ipaddr.IP) {
-		ipv4 = false
+		isv4 = false
 	}
 
 	return &Pinger{
@@ -90,7 +90,7 @@ func NewPinger(addr string) (*Pinger, error) {
 		Count:    -1,
 
 		network: "udp",
-		ipv4:    ipv4,
+		ipv4:    isv4,
 		size:    timeSliceLength,
 
 		done: make(chan bool),
@@ -205,16 +205,16 @@ type Statistics struct {
 
 // SetIPAddr sets the ip address of the target host.
 func (p *Pinger) SetIPAddr(ipaddr *net.IPAddr) {
-	var ipv4 bool
+	var isv4 bool
 	if isIPv4(ipaddr.IP) {
-		ipv4 = true
+		isv4 = true
 	} else if isIPv6(ipaddr.IP) {
-		ipv4 = false
+		isv4 = false
 	}
 
 	p.ipaddr = ipaddr
 	p.addr = ipaddr.String()
-	p.ipv4 = ipv4
+	p.ipv4 = isv4
 }
 
 // IPAddr returns the ip address of the target host.
