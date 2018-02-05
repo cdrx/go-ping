@@ -11,7 +11,7 @@ import (
 var usage = `
 Usage:
 
-    ping [-c count] [-i interval] [-t timeout] [--privileged] host
+    ping [-c count] [-i interval] [-t timeout] [-s size of packet] [--privileged] host
 
 Examples:
 
@@ -34,7 +34,8 @@ Examples:
 func main() {
 	timeout := flag.Duration("t", time.Second*100000, "")
 	interval := flag.Duration("i", time.Second, "")
-	count := flag.Int("c", -1, "")
+	count := flag.Int("c", 1, "")
+	size := flag.Int("s", 64, "")
 	privileged := flag.Bool("privileged", false, "")
 	flag.Usage = func() {
 		fmt.Printf(usage)
@@ -52,6 +53,8 @@ func main() {
 		fmt.Printf("ERROR: %s\n", err.Error())
 		return
 	}
+
+	pinger.SetSize(*size)
 
 	fmt.Printf("PING %s:\n", host)
 

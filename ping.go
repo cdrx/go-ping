@@ -38,6 +38,7 @@ import (
 )
 
 const (
+	defaultPingSize  = 64
 	timeSliceLength  = 8
 	protocolICMP     = 1
 	protocolIPv6ICMP = 58
@@ -116,12 +117,14 @@ type Pinger struct {
 	done      chan bool
 	closed    int32
 	mx        sync.RWMutex
+	size      int
 }
 
 func NewPinger(privileged bool) (*Pinger, error) {
 	pr := &Pinger{
 		receivers: make(map[int]chan *packet),
 		done:      make(chan bool),
+		size:      defaultPingSize,
 	}
 	pr.network = "udp"
 	if privileged {
@@ -149,6 +152,10 @@ func (pr *Pinger) Close() {
 	if atomic.CompareAndSwapInt32(&pr.closed, 0, 1) {
 		close(pr.done)
 	}
+}
+
+func (pr *Pinger) SetSize(size int) {
+	pr.size = size
 }
 
 func (pr *Pinger) recvLoop(conn *icmp.PacketConn, isIPv4 bool) {
@@ -198,12 +205,12 @@ func (pr *Pinger) recvLoop(conn *icmp.PacketConn, isIPv4 bool) {
 
 			switch pkt := m.Body.(type) {
 			case *icmp.Echo:
-				if len(pkt.Data) < timeSliceLength {
+				if len(pkt.Data) < pr.size {
 					// Incomplete/corrupted packet, ignore
 				} else {
 					outPkt := &packet{}
 					outPkt.seq = pkt.Seq
-					outPkt.rtt = time.Since(bytesToTime(pkt.Data))
+					outPkt.rtt = time.Since(bytesToTime(pkt.Data[:timeSliceLength]))
 					outPkt.data = n
 					pr.mx.RLock()
 					receiver := pr.receivers[pkt.ID]
@@ -214,8 +221,7 @@ func (pr *Pinger) recvLoop(conn *icmp.PacketConn, isIPv4 bool) {
 				}
 			default:
 				// Very bad, not sure how this can happen
-				fmt.Printf("Error, invalid ICMP echo reply. Body type: %T, %s\n",
-					pkt, pkt)
+				fmt.Printf("Error, invalid ICMP echo reply. Body type: %T, %s\n", pkt, pkt)
 			}
 		}
 	}
@@ -237,9 +243,8 @@ func (pr *Pinger) Ping(addr string, count int, interval time.Duration, timeout t
 		return nil, err
 	}
 
-	ipv4 := isIPv4(ipaddr.IP)
 	var conn *icmp.PacketConn
-	if ipv4 {
+	if isIPv4(ipaddr.IP) {
 		conn = pr.ipv4Conn
 	} else {
 		conn = pr.ipv6Conn
@@ -259,7 +264,7 @@ func (pr *Pinger) Ping(addr string, count int, interval time.Duration, timeout t
 	for {
 		select {
 		case <-sendInterval.C:
-			n, sendErr := pr.send(conn, ipaddr, ipv4, id, seq)
+			n, sendErr := pr.send(conn, ipaddr, isIPv4(ipaddr.IP), id, seq)
 			bytesSent += n
 			if sendErr != nil {
 				return buildStats(addr, ipaddr, seq, packetsReceived, rtts, bytesSent, bytesRecv), err
@@ -356,12 +361,16 @@ func (pr *Pinger) send(conn *icmp.PacketConn, ipaddr *net.IPAddr, isIPv4 bool, i
 		dst = &net.UDPAddr{IP: ipaddr.IP, Zone: ipaddr.Zone}
 	}
 
+	t := timeToBytes(time.Now())
+	if pr.size-timeSliceLength != 0 {
+		t = append(t, byteSliceOfSize(pr.size-timeSliceLength)...)
+	}
 	bytes, err := (&icmp.Message{
 		Type: typ, Code: 0,
 		Body: &icmp.Echo{
 			ID:   id,
 			Seq:  seq,
-			Data: timeToBytes(time.Now()),
+			Data: t,
 		},
 	}).Marshal(nil)
 	if err != nil {
